@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class LIFNeuron:
-    def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1.,
-                 dampening_factor=0.3, n_refractory=1, w_in_init=None, w_rec_init=None, rec=True):
+    def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1., n_refractory=1):
+    def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1., n_refractory=1):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
         :param n_in: Number of input neurons.
@@ -57,7 +57,7 @@ class LIFNeuron:
             return self.v, np.zeros(n_rec)  # No spike during refractory period
 
         # Membrane potential update
-        self.v = self._decay * self.v + self.z @ self.w_rec + x @ self.w_in  # Decay, recurrent weights and input weights
+        self.v = self.v + self.dt * (x @ self.w_in)  # self._decay * self.v + self.z @ self.w_rec Decay, recurrent weights and input weights
         self.v[self.z == 1] -= self.thr # Reset potential after spike
         # self.v[self.z == 1] = 0.0 # Reset potential after spike
 
@@ -84,10 +84,13 @@ class LIFNeuron:
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
+n_samples = 150
 network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2.)
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
-input_currents = np.random.rand(100, 13)
+# input_currents = np.random.rand(100, 13)
+input_currents = np.zeros((n_samples, n_in))
+input_currents[30:70, :] = 0.1
 
 # To store the output
 outputs = []
@@ -95,7 +98,7 @@ outputs = []
 voltages, spikes = [], []
 # Simulate for each input x^t and 
 # for epoch in range(80):
-for t in range(input_currents.shape[0]):  
+for t in range(n_samples):  
     # Run the simulation for 5 time steps (for each input x^t)
     # for _ in range(5):
     v, spike = network.update(input_currents[t])  # Update neuron with input
@@ -112,12 +115,14 @@ for t in range(input_currents.shape[0]):
 # print("Final Outputs (y^t) for all inputs (x^t):")
 # print(outputs)
 
+print(np.array(voltages).shape)
 # Example plotting of the results (if needed)
-plt.plot(range(input_currents.shape[0]), np.array(voltages))
+idx = 99
+plt.plot(range(n_samples), np.array(voltages)[:,idx])
 plt.title("Neuron Membrane Potential Over Time")
 plt.xlabel("Time Step")
 plt.ylabel("Voltage")
 plt.show()
 
-plt.plot(range(input_currents.shape[0]), np.array(spikes))
+plt.plot(range(n_samples), np.array(spikes)[:,idx])
 plt.show()
