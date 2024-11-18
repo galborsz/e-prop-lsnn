@@ -26,8 +26,9 @@ class LIFNeuron:
         self.time_since_last_spike = np.ones(n_rec) * n_refractory  # Initially assume refractory period has passed
 
         # Initialize weights
-        self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
-        self.w_rec = np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
+        # self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
+        self.w_in = np.ones((n_in, n_rec))
+        self.w_rec = np.ones((n_rec, n_rec)) * 0.001 #np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
         np.fill_diagonal(self.w_rec, 0) # remove self loops
         # # Set 80% of weights to zero
         # mask = np.random.rand(*self.w_rec.shape) < 0.8  # Randomly select 80% of weights
@@ -51,19 +52,20 @@ class LIFNeuron:
         :param x: input to neuron.
         :return: Tuple (voltage, spike) with updated membrane potential and spike output.
         """
-        if np.any(self.time_since_last_spike < self.n_refractory):
-            self.time_since_last_spike[self.time_since_last_spike < self.n_refractory] += self.dt
-            return self.v, np.zeros(n_rec)  # No spike during refractory period
 
         # Membrane potential update
-        self.v = self._decay * self.v + x @ self.w_in + self.z @ self.w_rec # Decay, recurrent weights and input weights
+        self.v = self._decay * self.v + np.dot(x, self.w_in) + np.dot(self.z, self.w_rec) # Decay, recurrent weights and input weights
         self.v[self.z == 1] -= self.thr # Reset potential after spike
-        # self.v[self.z == 1] = 0.0 # Reset potential after spike
+
+        if np.any(self.time_since_last_spike < self.n_refractory):
+            self.time_since_last_spike[self.time_since_last_spike < self.n_refractory] += self.dt
+            self.v = self.v
+            self.z = np.zeros(n_rec)
+            return self.v, self.z  # No spike during refractory period
 
         # Check for spike
         self.z = self.v >= self.thr  # 1 if spike, else 0
-        self.time_since_last_spike[self.z == 1] = 0 
-        self.time_since_last_spike[self.z == 0] += 1  # Reset refractory
+        self.time_since_last_spike[self.z == 1] = 0 # Reset refractory time count
 
         return self.v, self.z
     
@@ -83,13 +85,13 @@ class LIFNeuron:
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
-n_samples = 150
+n_samples = 550
 network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2.)
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
 # input_currents = np.random.rand(100, 13)
 input_currents = np.zeros((n_samples, n_in))
-input_currents[30:70, :] = 0.1
+input_currents[10:140, :] = 0.01
 
 # To store the output
 outputs = []
@@ -116,7 +118,7 @@ for t in range(n_samples):
 
 print(np.array(voltages).shape)
 # Example plotting of the results (if needed)
-idx = 99
+idx = 10
 plt.plot(range(n_samples), np.array(voltages)[:,idx])
 plt.title("Neuron Membrane Potential Over Time")
 plt.xlabel("Time Step")
