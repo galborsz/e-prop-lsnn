@@ -84,31 +84,33 @@ class LIFNeuron:
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
-neuron = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2.)
+network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2.)
 
-# Input array with 39 time steps, each with 13 features (input neurons)
-input_currents = np.random.rand(50, 13)  # 39 time steps (aka number of input samples) with 13 input neurons each
+# Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
+input_currents = np.random.rand(100, 13)
 
 # To store the output
 outputs = []
 
 voltages, spikes = [], []
-# Simulate for each input x^t and compute the output y^t at the end
-# for epoch in range(n_epochs):
-for t in range(input_currents.shape[0]):
-    # Reset neuron state at the beginning of each simulation for each input
-    # neuron.v = np.zeros(n_rec)  # Reset membrane potentials
-    # neuron.time_since_last_spike = np.ones(n_rec) * neuron.n_refractory  # Reset refractory period
-    
+# Simulate for each input x^t and 
+# for epoch in range(80):
+for t in range(input_currents.shape[0]):  
     # Run the simulation for 5 time steps (for each input x^t)
     # for _ in range(5):
-    v, spike = neuron.update(input_currents[t])  # Update neuron with input
+    v, spike = network.update(input_currents[t])  # Update neuron with input
     voltages.append(v)
     spikes.append(spike)
     
-# # After all time steps, compute the readout
+# # After all time steps, compute the readout (output y^t) at the end
 # final_output = neuron.readout()  # Compute the readout at the last time step
 # outputs.append(final_output)  # Store the output
+
+# # Convert outputs to numpy array for easier manipulation
+# outputs = np.array(outputs)
+
+# print("Final Outputs (y^t) for all inputs (x^t):")
+# print(outputs)
 
 # Example plotting of the results (if needed)
 plt.plot(range(input_currents.shape[0]), np.array(voltages))
@@ -119,10 +121,3 @@ plt.show()
 
 plt.plot(range(input_currents.shape[0]), np.array(spikes))
 plt.show()
-
-# Convert outputs to numpy array for easier manipulation
-outputs = np.array(outputs)
-
-
-print("Final Outputs (y^t) for all inputs (x^t):")
-print(outputs)
