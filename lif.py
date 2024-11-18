@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class LIFNeuron:
-    def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1., n_refractory=1):
+    def __init__(self, n_in, n_rec, n_out, tau=20., thr=0.615, dt=1., n_refractory=1):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
         :param n_in: Number of input neurons.
@@ -18,6 +18,7 @@ class LIFNeuron:
         """
         self.n_in = n_in
         self.n_rec = n_rec
+        self.n_out = n_out
         self.tau = tau
         self.thr = thr
         self.dt = dt
@@ -39,12 +40,12 @@ class LIFNeuron:
         self.z = np.zeros(n_rec)
         
         # Output neuron weights and biases
-        self.w_out = np.random.randn(n_rec, n_rec) / np.sqrt(n_rec)  # Example output weights
-        self.b_out = np.zeros(n_rec)  # Example output biases
+        self.w_out = np.ones((n_rec, n_out)) * 0.001 # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec)  # Example output weights
+        self.b_out = np.zeros(n_out)  # Example output biases
         
         # Readout parameters
-        self.kappa = 0.9  # Leak factor for readout neurons
-        self.y_prev = np.zeros(n_rec)  # Previous output values
+        self.k = 0.9  # Decay factor for output neurons
+        self.y = np.zeros(n_out)  # Previous output values
 
     def update(self, x):
         """
@@ -75,9 +76,16 @@ class LIFNeuron:
         :return: The output of the readout neurons at the current time step.
         """
         # Compute the output using the previous output and recurrent activity
-        y = self.kappa * self.y_prev + np.dot(self.v, self.w_out) + self.b_out
-        self.y_prev = y  # Update previous output for next time step
-        return y
+        self.y = self.k * self.y + np.dot(self.z, self.w_out) + self.b_out
+        return self.y
+
+
+    def predicted_probability(self):
+        return np.exp(self.y)/(np.sum(np.exp(self.y)))
+
+# def compute_error(self, target):
+#     return - np.sum(target * np.log(predicted_probability()))
+
 
 # Example Usage
 
@@ -86,7 +94,7 @@ n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
 n_samples = 550
-network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2.)
+network = LIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, tau=20., thr=1.6, dt=1., n_refractory=2.)
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
 # input_currents = np.random.rand(100, 13)
