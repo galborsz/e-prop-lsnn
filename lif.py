@@ -114,14 +114,36 @@ for t in range(n_samples):
 # print("Final Outputs (y^t) for all inputs (x^t):")
 # print(outputs)
 
-print(np.array(voltages).shape)
-# Example plotting of the results (if needed)
+# Create the figure and subplots
+fig, axs = plt.subplots(nrows=2, ncols=1, figsize=(16, 10), constrained_layout=True)
+
+x = range(n_samples)
 idx = 99
-plt.plot(range(n_samples), np.array(voltages)[:,idx])
-plt.title("Neuron Membrane Potential Over Time")
-plt.xlabel("Time Step")
-plt.ylabel("Voltage")
+v = np.array(voltages)[:,idx]
+s = np.array(spikes)[:,idx]
+# Plot data in each subplot
+axs[0].plot(x, v, color='blue')
+axs[0].set_title("Voltage")
+axs[0].set_xlabel("t")
+axs[0].set_ylabel("v")
+
+axs[1].plot(x, s, color='red')
+axs[1].set_title("Cosine Wave")
+axs[1].set_xlabel("X-axis")
+axs[1].set_ylabel("Y-axis")
+
+# Display the plot
 plt.show()
 
-plt.plot(range(n_samples), np.array(spikes)[:,idx])
-plt.show()
+
+# print(np.array(voltages).shape)
+# # Example plotting of the results (if needed)
+# idx = 99
+# plt.plot(range(n_samples), np.array(voltages)[:,idx])
+# plt.title("Neuron Membrane Potential Over Time")
+# plt.xlabel("Time Step")
+# plt.ylabel("Voltage")
+# plt.show()
+#
+# plt.plot(range(n_samples), np.array(spikes)[:,idx])
+# plt.show()
