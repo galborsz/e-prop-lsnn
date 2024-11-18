@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 
 class LIFNeuron:
     def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1., n_refractory=1):
-    def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1., n_refractory=1):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
         :param n_in: Number of input neurons.
@@ -57,7 +56,7 @@ class LIFNeuron:
             return self.v, np.zeros(n_rec)  # No spike during refractory period
 
         # Membrane potential update
-        self.v = self.v + self.dt * (x @ self.w_in)  # self._decay * self.v + self.z @ self.w_rec Decay, recurrent weights and input weights
+        self.v = self._decay * self.v + x @ self.w_in + self.z @ self.w_rec # Decay, recurrent weights and input weights
         self.v[self.z == 1] -= self.thr # Reset potential after spike
         # self.v[self.z == 1] = 0.0 # Reset potential after spike
 
