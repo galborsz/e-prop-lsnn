@@ -30,8 +30,8 @@ class LIFNeuron:
         self.p = p  # 0 < p < 1, adaptation decay constant , p > alpha(_decay)
         self.beta = beta  # beta >= 0, adaptation strenght constant
 
-        print('p ', p)
-        print('alpha (_decay) ', self._decay)
+        # print('p ', p)
+        # print('alpha (_decay) ', self._decay)
 
         # Initialize weights
         # self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
