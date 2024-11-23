@@ -35,8 +35,8 @@ class LIFNeuron:
 
         # Initialize weights
         # self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
-        self.w_in = np.ones((n_in, n_rec))
-        self.w_rec = np.ones((n_rec, n_rec)) * 0.001  # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
+        self.w_in = np.ones((n_in, n_rec)) *0.1
+        self.w_rec = np.ones((n_rec, n_rec)) * 0.01  # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
         np.fill_diagonal(self.w_rec, 0)
         # # Set 80% of weights to zero
         # mask = np.random.rand(*self.w_rec.shape) < 0.8  # Randomly select 80% of weights
@@ -66,21 +66,27 @@ class LIFNeuron:
         # Membrane potential update
         self.v = (self._decay * self.v) + np.dot(x, self.w_in) + np.dot(self.z, self.w_rec)  # + (self.z * self.thr)
         # Decay, recurrent weights and input weights
-        self.v[self.z == 1] -= self.thr  # Reset potential after spike
+        self.v[self.z == 1] -= self.thr + 10 # Reset potential after spike
 
         # Adaptive threshold
-        self.a = self.p * self.a + self.z
+        # self.a = self.p * self.a + self.z
+        for i, z in enumerate(self.z):
+            if z:
+                self.a[i] = self.p * self.a[i] + z
+
 
         if np.any(self.time_since_last_spike < self.n_refractory):
             self.time_since_last_spike[self.time_since_last_spike < self.n_refractory] += self.dt
-            self.v = self.v
-            self.z = np.zeros(n_rec)
-            self.a = self.a
+            # self.v = self.v
+            self.z = np.zeros_like(self.z)
+            # self.a = self.a
             return self.v, self.z, self.a  # No spike during refractory period
 
         # Check for spike
-        self.z = self.v >= self.thr + self.beta * self.a  # 1 if spike, else 0
+        self.z = self.v >= (self.thr + self.beta * self.a)  # 1 if spike, else 0
+        # self.a[self.z == 1] = self.p * self.a + self.z
         self.time_since_last_spike[self.z == 1] = 0  # Reset refractory time count
+
 
         return self.v, self.z, self.a
 
@@ -169,6 +175,8 @@ axs[3].set_xlabel("t")
 
 # Display the plot
 plt.show()
+
+
 
 # print(np.array(voltages).shape)
 # # Example plotting of the results (if needed)
