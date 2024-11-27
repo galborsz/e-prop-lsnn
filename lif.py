@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 class ALIFNeuron:
     def __init__(self, n_in, n_rec, n_out, t_total, tau_m=20., tau_a=20., thr=0.615, dt=1., n_refractory=2., beta=0.07):
         """
@@ -29,6 +30,8 @@ class ALIFNeuron:
         self.n_refractory = n_refractory
         self.time_since_last_spike = np.ones(n_rec) * n_refractory  # Initially assume refractory period has passed
 
+        print(self.alpha, self.p)
+
         # ALIF parameters
         self.p = self.p  # 0 < p < 1, adaptation decay constant , p > alpha(_decay)
         self.beta = beta  # beta >= 0, adaptation strenght constant
@@ -36,8 +39,8 @@ class ALIFNeuron:
         # Initialize weights
         # self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
         self.w_in = np.ones((n_in, n_rec))
-        self.w_rec = np.ones((n_rec, n_rec)) * 0.001 #np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
-        np.fill_diagonal(self.w_rec, 0) # remove self loops
+        self.w_rec = np.ones((n_rec, n_rec)) * 0.001  # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
+        np.fill_diagonal(self.w_rec, 0)  # remove self loops
         # # Set 80% of weights to zero
         # mask = np.random.rand(*self.w_rec.shape) < 0.8  # Randomly select 80% of weights
         # self.w_rec[mask] = 0  # Set selected weights to zero
@@ -48,9 +51,10 @@ class ALIFNeuron:
         self.a = np.zeros((n_rec, t_total))  # threshold adaptive variable
         
         # Output neuron weights and biases
-        self.w_out = np.ones((n_rec, n_out)) * 0.001 # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec)  # Example output weights
+        # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec)  # Example output weights
+        self.w_out = np.ones((n_rec, n_out)) * 0.001
         self.b_out = np.zeros(n_out)  # Example output biases
-        
+
         # Readout parameters
         self.k = 0.9  # Decay factor for output neurons
         self.y = np.zeros(n_out)  # Previous output values
@@ -101,30 +105,25 @@ class ALIFNeuron:
         self.y = self.k * self.y + np.dot(self.z, self.w_out) + self.b_out
         return self.y
 
-
     def predicted_probability(self):
-        return np.exp(self.y)/(np.sum(np.exp(self.y)))
+        return np.exp(self.y) / (np.sum(np.exp(self.y)))
+
 
 # def compute_error(self, target):
 #     return - np.sum(target * np.log(predicted_probability()))
 
 
-# Example Usage
-
 # Initialize the LIF neuron model
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
-n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
+n_out = 61  # Number of output neurons, one for each class of the TIMIT dataset
 n_samples = 550
 network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, tau_m=20., tau_a=500., thr=1.6, dt=1., n_refractory=5., beta=0.07)
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
-# input_currents = np.random.rand(100, 13)
-# input_currents = np.zeros((n_samples, n_in))
-# input_currents[10:140, :] = 0.01
 x = np.linspace(0, 50, n_samples)  # Create 150 points over one period
-single_wave = 0.001*np.sin((x+0.2)/2) + 0.01
-input_currents = np.tile(single_wave, (n_in, 1)).T 
+single_wave = 0.001 * np.sin((x + 0.2) / 2) + 0.01
+input_currents = np.tile(single_wave, (n_in, 1)).T
 
 # To store the output
 outputs = []
