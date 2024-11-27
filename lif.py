@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class ALIFNeuron:
-    def __init__(self, n_in, n_rec, n_out, tau=20., thr=0.615, dt=1., n_refractory=1, p=0.5, beta=0.5):
+    def __init__(self, n_in, n_rec, n_out, t_total, tau=20., thr=0.615, dt=1., n_refractory=1, p=0.5, beta=0.5):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
         :param n_in: Number of input neurons.
@@ -22,7 +22,8 @@ class ALIFNeuron:
         self.tau = tau
         self.thr = thr
         self.dt = dt
-        self._decay = np.exp(-dt / tau)
+        self.t_total = t_total
+        self.alpha = np.exp(-dt / tau)
         self.n_refractory = n_refractory
         self.time_since_last_spike = np.ones(n_rec) * n_refractory  # Initially assume refractory period has passed
 
@@ -40,9 +41,9 @@ class ALIFNeuron:
         # self.w_rec[mask] = 0  # Set selected weights to zero
 
         # State variables
-        self.v = np.zeros(n_rec)  # Initial membrane potential
-        self.z = np.zeros(n_rec)
-        self.a = np.zeros(n_rec)  # threshold adaptive variable
+        self.v = np.zeros((n_rec, t_total))  # Initial membrane potential
+        self.z = np.zeros((n_rec, t_total))
+        self.a = np.zeros((n_rec, t_total))  # threshold adaptive variable
         
         # Output neuron weights and biases
         self.w_out = np.ones((n_rec, n_out)) * 0.001 # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec)  # Example output weights
@@ -52,7 +53,10 @@ class ALIFNeuron:
         self.k = 0.9  # Decay factor for output neurons
         self.y = np.zeros(n_out)  # Previous output values
 
-    def update(self, x):
+        # Eligibility traces
+        self.elig_trace = np.zeros(n_rec)
+
+    def update_state(self, x, t):
         """
         Updates the neuron's membrane potential and spikes based on input current.
         :param x: input to neuron.
@@ -60,22 +64,31 @@ class ALIFNeuron:
         """
 
         # Membrane potential update
-        self.v = self._decay * self.v + np.dot(x, self.w_in) + np.dot(self.z, self.w_rec) # Decay, recurrent weights and input weights
-        self.v[self.z == 1] -= self.thr # Reset potential after spike
+        self.v[:, t + 1] = self.alpha * self.v[:, t] + np.dot(x, self.w_in) + np.dot(self.z[:, t], self.w_rec) # Decay, recurrent weights and input weights
+        self.v[self.z[:, t] == 1, t + 1] -= self.thr # Reset potential after spike
 
         # Adaptive threshold
-        self.a = self.p * self.a + self.z
+        self.a[:, t + 1] = self.p * self.a[:, t] + self.z[:, t]
 
         if np.any(self.time_since_last_spike < self.n_refractory):
             self.time_since_last_spike[self.time_since_last_spike < self.n_refractory] += self.dt
-            self.z = np.zeros(n_rec)
-            return self.v, self.z, self.a # No spike during refractory period
+            return # No spike during refractory period
 
         # Check for spike
-        self.z = self.v >= (self.thr + self.beta * self.a)   # 1 if spike, else 0
-        self.time_since_last_spike[self.z == 1] = 0 # Reset refractory time count
+        self.z[:, t + 1] = self.v[:, t] >= (self.thr + self.beta * self.a[:, t])   # 1 if spike, else 0
+        self.time_since_last_spike[self.z[:, t + 1] == 1] = 0 # Reset refractory time count
 
-        return self.v, self.z, self.a
+        return
+    
+    def pseudo_derivative(self):
+        return self.gamma * np.max(0, 1 - np.abs((self.v - self.thr - self.beta * self.a) / self.thr))
+    
+    def update_eligibility_trace(self):
+        self.e_a = self.pseudo_derivative() * self.e_v + (self.p - self.pseudo_derivative() * self.beta) * self.e_a
+        self.e_v = self.alpha * self.e_v + self.z # has to be z^{t-1}
+        
+        self.elig_trace = self.pseudo_derivative() * (self.e_v - self.beta * self.e_a)
+        return self.elig_trace
     
     def readout(self):
         """
@@ -101,7 +114,7 @@ n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
 n_samples = 550
-network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, tau=20., thr=1.6, dt=1., n_refractory=2., p=0.96, beta=0.5)
+network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, t_total=n_samples, tau=20., thr=1.6, dt=1., n_refractory=2., p=0.96, beta=0.5)
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
 # input_currents = np.random.rand(100, 13)
@@ -114,17 +127,17 @@ input_currents = np.tile(single_wave, (n_in, 1)).T
 # To store the output
 outputs = []
 
-voltages, spikes, adaptive = [], [], []
 # Simulate for each input x^t and 
 # for epoch in range(80):
-for t in range(n_samples):  
+for t in range(n_samples - 1):  
     # Run the simulation for 5 time steps (for each input x^t)
     # for _ in range(5):
-    v, spike, a = network.update(input_currents[t])  # Update neuron with input
-    voltages.append(v)
-    spikes.append(spike)
-    adaptive.append(a)
-    
+    network.update_state(input_currents[t], t)  # Update neuron with input
+
+voltages = network.v
+spikes = network.z
+adaptive = network.a
+
 # # After all time steps, compute the readout (output y^t) at the end
 # final_output = neuron.readout()  # Compute the readout at the last time step
 # outputs.append(final_output)  # Store the output
@@ -142,9 +155,9 @@ fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 7), constrained_layout=Tr
 x = range(n_samples)
 idx = 99
 input = input_currents[:,0]
-v = np.array(voltages)[:, idx]
-s = np.array(spikes)[:, idx]
-a = np.array(adaptive)[:, idx]
+v = np.array(voltages)[idx, :]
+s = np.array(spikes)[idx, :]
+a = np.array(adaptive)[idx, :]
 # Plot data in each subplot
 axs[0].plot(x, input, color='red')
 axs[0].set_title("Input")
