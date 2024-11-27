@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class ALIFNeuron:
-    def __init__(self, n_in, n_rec, n_out, t_total, tau=20., thr=0.615, dt=1., n_refractory=1, p=0.5, beta=0.5):
+    def __init__(self, n_in, n_rec, n_out, t_total, tau_m=20., tau_a=20., thr=0.615, dt=1., n_refractory=2., beta=0.07):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
         :param n_in: Number of input neurons.
@@ -19,16 +19,18 @@ class ALIFNeuron:
         self.n_in = n_in
         self.n_rec = n_rec
         self.n_out = n_out
-        self.tau = tau
+        self.tau_m = tau_m
+        self.tau_a = tau_a
         self.thr = thr
         self.dt = dt
         self.t_total = t_total
-        self.alpha = np.exp(-dt / tau)
+        self.alpha = np.exp(-dt / tau_m)  # decay factor alpha
+        self.p = np.exp(-dt / tau_a)  # 0 < p < 1, adaptation decay constant , p > alpha (_decay)
         self.n_refractory = n_refractory
         self.time_since_last_spike = np.ones(n_rec) * n_refractory  # Initially assume refractory period has passed
 
         # ALIF parameters
-        self.p = p  # 0 < p < 1, adaptation decay constant , p > alpha(_decay)
+        self.p = self.p  # 0 < p < 1, adaptation decay constant , p > alpha(_decay)
         self.beta = beta  # beta >= 0, adaptation strenght constant
 
         # Initialize weights
@@ -114,7 +116,7 @@ n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
 n_samples = 550
-network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, t_total=n_samples, tau=20., thr=1.6, dt=1., n_refractory=2., p=0.96, beta=0.5)
+network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, tau_m=20., tau_a=500., thr=1.6, dt=1., n_refractory=5., beta=0.07)
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
 # input_currents = np.random.rand(100, 13)
