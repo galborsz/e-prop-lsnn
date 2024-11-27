@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-class LIFNeuron:
+class ALIFNeuron:
     def __init__(self, n_in, n_rec, tau=20., thr=0.615, dt=1., n_refractory=1., p=0.5, beta=0.5):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
@@ -35,7 +35,7 @@ class LIFNeuron:
 
         # Initialize weights
         # self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
-        self.w_in = np.ones((n_in, n_rec)) *0.1
+        self.w_in = np.ones((n_in, n_rec)) * 0.1
         self.w_rec = np.ones((n_rec, n_rec)) * 0.01  # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
         np.fill_diagonal(self.w_rec, 0)
         # # Set 80% of weights to zero
@@ -66,7 +66,7 @@ class LIFNeuron:
         # Membrane potential update
         self.v = (self._decay * self.v) + np.dot(x, self.w_in) + np.dot(self.z, self.w_rec)  # + (self.z * self.thr)
         # Decay, recurrent weights and input weights
-        self.v[self.z == 1] -= self.thr# Reset potential after spike
+        self.v[self.z == 1] -= self.thr  # Reset potential after spike
 
         # Adaptive threshold
         self.a = self.p * self.a + self.z
@@ -104,11 +104,10 @@ n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61  # Number of output neurons, one for each class of the TIMIT dataset
 n_samples = 300
-network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2., p=0.99, beta=0.5)
-
+network = ALIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2., p=0.99, beta=0)
 
 x = np.linspace(0, 50, n_samples)  # Create 150 points over one period
-single_wave = 0.05*np.sin((x+0.2)/2) + 0.5
+single_wave = 0.005 * np.sin((x + 0.1) / 2) + 0.5
 input_currents = np.tile(single_wave, (n_in, 1)).T  # Transpose to get 150 rows and 13 columns
 
 outputs = []
@@ -126,7 +125,7 @@ fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(16, 10), constrained_layout=T
 
 x = range(n_samples)
 idx = 99
-input = input_currents[:,0]
+input = input_currents[:, 0]
 v = np.array(voltages)[:, idx]
 s = np.array(spikes)[:, idx]
 a = np.array(adaptive)[:, idx]
@@ -134,6 +133,8 @@ a = np.array(adaptive)[:, idx]
 axs[0].plot(x, input, color='red')
 axs[0].set_title("Input")
 axs[0].set_xlabel("t")
+# axs[0].set_yticks([0.145, 0.15, 0.155])
+axs[0].grid()
 
 axs[1].plot(x, v, color='blue')
 axs[1].set_title("Voltage")
