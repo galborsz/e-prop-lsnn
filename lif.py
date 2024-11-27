@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import pickle
+
+path = '/Users/giselaalbors/Desktop/university/master/semester 5/e-prop-lsnn/timit_processed/train/'
 
 
 class ALIFNeuron:
@@ -30,8 +33,6 @@ class ALIFNeuron:
         self.n_refractory = n_refractory
         self.time_since_last_spike = np.ones(n_rec) * n_refractory  # Initially assume refractory period has passed
 
-        print(self.alpha, self.p)
-
         # ALIF parameters
         self.p = self.p  # 0 < p < 1, adaptation decay constant , p > alpha(_decay)
         self.beta = beta  # beta >= 0, adaptation strenght constant
@@ -47,20 +48,31 @@ class ALIFNeuron:
 
         # State variables
         self.v = np.zeros((n_rec, t_total))  # Initial membrane potential
-        self.z = np.zeros((n_rec, t_total))
         self.a = np.zeros((n_rec, t_total))  # threshold adaptive variable
+        self.z = np.zeros((n_rec, t_total))
+        self.y = np.zeros((n_out, t_total))
         
         # Output neuron weights and biases
         # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec)  # Example output weights
         self.w_out = np.ones((n_rec, n_out)) * 0.001
+        self.B = np.transpose(self.w_out)
         self.b_out = np.zeros(n_out)  # Example output biases
 
         # Readout parameters
         self.k = 0.9  # Decay factor for output neurons
-        self.y = np.zeros(n_out)  # Previous output values
+        self.y = np.zeros((n_out, t_total))  # Previous output values
 
         # Eligibility traces
-        self.elig_trace = np.zeros(n_rec)
+        self.e_v = np.zeros((n_rec, t_total))
+        self.e_a = np.zeros((n_rec, t_total))
+        self.eligibility_traces = np.zeros((n_rec, t_total))
+        self.filtered_traces = np.zeros((n_rec, t_total))
+        self.gamma = 0.3
+
+        # Learning signal 
+        self.L = np.zeros((n_rec, t_total))
+        self.lr = 0.001
+        
 
     def update_state(self, x, t):
         """
@@ -84,83 +96,84 @@ class ALIFNeuron:
         self.z[:, t + 1] = self.v[:, t] >= (self.thr + self.beta * self.a[:, t])   # 1 if spike, else 0
         self.time_since_last_spike[self.z[:, t + 1] == 1] = 0 # Reset refractory time count
 
+        # Compute the output using the previous output and recurrent activity
+        self.y[:, t + 1] = self.k * self.y[:, t] + np.dot(self.z[:, t], self.w_out) + self.b_out
+
         return
     
-    def pseudo_derivative(self):
-        return self.gamma * np.max(0, 1 - np.abs((self.v - self.thr - self.beta * self.a) / self.thr))
+    def pseudo_derivative(self, t):
+        return (1 / self.thr) * self.gamma * np.maximum(np.zeros(self.n_rec), 1 - np.abs((self.v[:, t] - self.thr - self.beta * self.a[:, t]) / self.thr))
     
-    def update_eligibility_trace(self):
-        self.e_a = self.pseudo_derivative() * self.e_v + (self.p - self.pseudo_derivative() * self.beta) * self.e_a
-        self.e_v = self.alpha * self.e_v + self.z # has to be z^{t-1}
-        
-        self.elig_trace = self.pseudo_derivative() * (self.e_v - self.beta * self.e_a)
-        return self.elig_trace
+    def update_eligibility_trace(self, t):
+        pd = self.pseudo_derivative(t)
+        self.e_v[:, t + 1] = self.alpha * self.e_v[:, t] + self.z[:, t - 1]
+        self.e_a[:, t + 1] = pd * self.e_v[:, t] + (self.p - pd * self.beta) * self.e_a[:, t]
+        self.eligibility_traces[:, t] = pd * (self.e_v[:, t] - self.beta * self.e_a[:, t])
     
-    def readout(self):
-        """
-        Computes the readout from the recurrent network.
-        :return: The output of the readout neurons at the current time step.
-        """
-        # Compute the output using the previous output and recurrent activity
-        self.y = self.k * self.y + np.dot(self.z, self.w_out) + self.b_out
-        return self.y
+    def update_learning_signal(self, target, t):
+        predicted_prob = np.exp(self.y[:, t]) / np.sum(np.exp(self.y[:, t]))
+        self.L[:, t] = np.dot(predicted_prob - target, self.B)
 
-    def predicted_probability(self):
-        return np.exp(self.y) / (np.sum(np.exp(self.y)))
+    def weight_update(self, target, t):
 
+        network.update_eligibility_trace(t)
+        network.update_learning_signal(target, t)
 
-# def compute_error(self, target):
-#     return - np.sum(target * np.log(predicted_probability()))
+        self.filtered_traces[:, t] = (1 - self.k) * self.eligibility_traces[:, t - 1] + self.filtered_traces[:, t]
+        self.w_rec -= self.lr * np.dot(self.L[:, t], self.filtered_traces[:, t])
 
-
-# Initialize the LIF neuron model
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
-n_out = 61  # Number of output neurons, one for each class of the TIMIT dataset
-n_samples = 550
-network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, tau_m=20., tau_a=500., thr=1.6, dt=1., n_refractory=5., beta=0.07)
+n_out = 39  # Number of output neurons, one for each class of the TIMIT dataset
 
-# Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
-x = np.linspace(0, 50, n_samples)  # Create 150 points over one period
-single_wave = 0.001 * np.sin((x + 0.2) / 2) + 0.01
-input_currents = np.tile(single_wave, (n_in, 1)).T
+# Simulate for each input x^t
+X_train_data = pickle.load(open(path + 'mfccs.pickle', 'rb'))
+X_train_data = X_train_data[0]
+target_train_data = pickle.load(open(path + 'phonems.pickle', 'rb'))
+target_train_data = target_train_data[0]
 
-# To store the output
-outputs = []
+# Initialize an empty array for one-hot encoding
+one_hot_encoded_target = np.zeros((X_train_data.shape[0], n_out))
 
-# Simulate for each input x^t and 
-# for epoch in range(80):
+# Set the corresponding index of each element in input_array to 1
+for i in range(X_train_data.shape[0]):
+    one_hot_encoded_target[i, target_train_data[i]] = 1
+
+# Find the min and max values for each feature (column)
+min_values = np.min(X_train_data, axis=0)  # Minimum value for each feature
+max_values = np.max(X_train_data, axis=0)  # Maximum value for each feature
+
+# Apply min-max normalization to scale the features to the range [0, 1]
+normalized_X_train_data = (X_train_data - min_values) / (max_values - min_values)
+
+n_samples = len(normalized_X_train_data)
+
+# Initialize the LIF neuron model
+network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, t_total=n_samples, tau_m=20., tau_a=500., thr=50., dt=1., n_refractory=5., beta=0.07)
+
+# for epoch in range(20):
 for t in range(n_samples - 1):  
     # Run the simulation for 5 time steps (for each input x^t)
     # for _ in range(5):
-    network.update_state(input_currents[t], t)  # Update neuron with input
+    network.update_state(normalized_X_train_data[t], t)  # Update neuron with input
 
-voltages = network.v
-spikes = network.z
-adaptive = network.a
-
-# # After all time steps, compute the readout (output y^t) at the end
-# final_output = neuron.readout()  # Compute the readout at the last time step
-# outputs.append(final_output)  # Store the output
-
-# # Convert outputs to numpy array for easier manipulation
-# outputs = np.array(outputs)
-
-# print("Final Outputs (y^t) for all inputs (x^t):")
-# print(outputs)
+    if t >= 1:
+        network.weight_update(one_hot_encoded_target[t, :], t)
 
 # Example plotting of the results (if needed)
 # Create the figure and subplots
-fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 7), constrained_layout=True)
+fig, axs = plt.subplots(nrows=5, ncols=1, figsize=(10, 7), constrained_layout=True)
 
 x = range(n_samples)
 idx = 99
-input = input_currents[:,0]
-v = np.array(voltages)[idx, :]
-s = np.array(spikes)[idx, :]
-a = np.array(adaptive)[idx, :]
+input = normalized_X_train_data[:,0]
+v = network.v[idx, :]
+s = network.z[idx, :]
+a = network.a[idx, :]
+e = network.eligibility_traces[idx, :]
+
 # Plot data in each subplot
-axs[0].plot(x, input, color='red')
+axs[0].plot(x, input)
 axs[0].set_title("Input")
 axs[0].set_xlabel("t")
 
@@ -176,5 +189,9 @@ axs[2].set_xlabel("a")
 axs[3].plot(x, s, color='red')
 axs[3].set_title("Spikes")
 axs[3].set_xlabel("t")
+
+axs[4].plot(x, e, color='blue')
+axs[4].set_title("Eligibility trace")
+axs[4].set_xlabel("t")
 
 plt.show()
