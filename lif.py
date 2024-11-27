@@ -66,14 +66,13 @@ class LIFNeuron:
         # Membrane potential update
         self.v = (self._decay * self.v) + np.dot(x, self.w_in) + np.dot(self.z, self.w_rec)  # + (self.z * self.thr)
         # Decay, recurrent weights and input weights
-        self.v[self.z == 1] -= self.thr + 10 # Reset potential after spike
+        self.v[self.z == 1] -= self.thr# Reset potential after spike
 
         # Adaptive threshold
-        # self.a = self.p * self.a + self.z
-        for i, z in enumerate(self.z):
-            if z:
-                self.a[i] = self.p * self.a[i] + z
-
+        self.a = self.p * self.a + self.z
+        # for i, z in enumerate(self.z):
+        #     if z:
+        #         self.a[i] = self.p * self.a[i] + z
 
         if np.any(self.time_since_last_spike < self.n_refractory):
             self.time_since_last_spike[self.time_since_last_spike < self.n_refractory] += self.dt
@@ -86,7 +85,6 @@ class LIFNeuron:
         self.z = self.v >= (self.thr + self.beta * self.a)  # 1 if spike, else 0
         # self.a[self.z == 1] = self.p * self.a + self.z
         self.time_since_last_spike[self.z == 1] = 0  # Reset refractory time count
-
 
         return self.v, self.z, self.a
 
@@ -101,8 +99,6 @@ class LIFNeuron:
         return y
 
 
-# Example Usage
-
 # Initialize the LIF neuron model
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
@@ -110,39 +106,20 @@ n_out = 61  # Number of output neurons, one for each class of the TIMIT dataset
 n_samples = 300
 network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2., p=0.99, beta=0.5)
 
-# Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
-# input_currents = np.random.rand(100, 13)
-x = np.linspace(0, 50, n_samples)  # Create 150 points over one period
-single_wave = 0.05*np.sin((x+0.2)/2) +0.5
-input_currents = np.tile(single_wave, (n_in, 1)).T  # Transpose to get 150 rows and 13 columns
-# input_currents = np.zeros((n_samples, n_in))
-# input_currents[30:70, :] = 0.01
-# input_currents[80:120, :] = 0.01
-# input_currents[,:] = np.sin(n_samples)
 
-# To store the output
+x = np.linspace(0, 50, n_samples)  # Create 150 points over one period
+single_wave = 0.05*np.sin((x+0.2)/2) + 0.5
+input_currents = np.tile(single_wave, (n_in, 1)).T  # Transpose to get 150 rows and 13 columns
+
 outputs = []
 
 voltages, spikes, adaptive = [], [], []
-# Simulate for each input x^t and 
-# for epoch in range(80):
+
 for t in range(n_samples):
-    # Run the simulation for 5 time steps (for each input x^t)
-    # for _ in range(5):
     v, spike, a = network.update(input_currents[t])  # Update neuron with input
     voltages.append(v)
     spikes.append(spike)
     adaptive.append(a)
-
-# # After all time steps, compute the readout (output y^t) at the end
-# final_output = neuron.readout()  # Compute the readout at the last time step
-# outputs.append(final_output)  # Store the output
-
-# # Convert outputs to numpy array for easier manipulation
-# outputs = np.array(outputs)
-
-# print("Final Outputs (y^t) for all inputs (x^t):")
-# print(outputs)
 
 # Create the figure and subplots
 fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(16, 10), constrained_layout=True)
@@ -171,21 +148,4 @@ axs[3].plot(x, s, color='red')
 axs[3].set_title("Spikes")
 axs[3].set_xlabel("t")
 
-
-
-# Display the plot
 plt.show()
-
-
-
-# print(np.array(voltages).shape)
-# # Example plotting of the results (if needed)
-# idx = 99
-# plt.plot(range(n_samples), np.array(voltages)[:,idx])
-# plt.title("Neuron Membrane Potential Over Time")
-# plt.xlabel("Time Step")
-# plt.ylabel("Voltage")
-# plt.show()
-#
-# plt.plot(range(n_samples), np.array(spikes)[:,idx])
-# plt.show()
