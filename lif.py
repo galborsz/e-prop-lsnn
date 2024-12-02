@@ -25,6 +25,10 @@ class LIFNeuron:
         self.n_refractory = n_refractory
         self.time_since_last_spike = np.ones(n_rec) * n_refractory  # Initially assume refractory period has passed
 
+
+        self.eligibility_in = np.zeros((self.n_in, self.n_rec))  # Input-to-recurrent traces
+        self.eligibility_rec = np.zeros((self.n_rec, self.n_rec))  # Recurrent traces
+
         # Initialize weights
         self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
         self.w_rec = np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
@@ -51,6 +55,17 @@ class LIFNeuron:
         :param x: input to neuron.
         :return: Tuple (voltage, spike) with updated membrane potential and spike output.
         """
+<<<<<<< Updated upstream
+=======
+        # Eligibility trace update
+        self.eligibility_in = self._decay * self.eligibility_in + np.outer(x, self.z)  # Input contribution
+        self.eligibility_rec = self._decay * self.eligibility_rec + np.outer(self.z, self.z)  # Recurrent contribution
+        
+        # Membrane potential update
+        self.v = self._decay * self.v + np.dot(x, self.w_in) + np.dot(self.z, self.w_rec) # Decay, recurrent weights and input weights
+        self.v[self.z == 1] -= self.thr # Reset potential after spike
+
+>>>>>>> Stashed changes
         if np.any(self.time_since_last_spike < self.n_refractory):
             self.time_since_last_spike[self.time_since_last_spike < self.n_refractory] += self.dt
             return self.v, np.zeros(n_rec)  # No spike during refractory period
@@ -83,8 +98,13 @@ class LIFNeuron:
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 61 # Number of output neurons, one for each class of the TIMIT dataset
+<<<<<<< Updated upstream
 n_samples = 150
 network = LIFNeuron(n_in=n_in, n_rec=n_rec, tau=20., thr=1.6, dt=1., n_refractory=2.)
+=======
+n_samples = 61
+network = LIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, tau=20., thr=1.6, dt=1., n_refractory=2.)
+>>>>>>> Stashed changes
 
 # Input array with 100 time steps (aka number of input samples) with 13 features (aka input neurons) each
 # input_currents = np.random.rand(100, 13)
@@ -96,15 +116,73 @@ outputs = []
 
 voltages, spikes = [], []
 # Simulate for each input x^t and 
-# for epoch in range(80):
-for t in range(n_samples):  
-    # Run the simulation for 5 time steps (for each input x^t)
-    # for _ in range(5):
-    v, spike = network.update(input_currents[t])  # Update neuron with input
-    voltages.append(v)
-    spikes.append(spike)
+
+
+
+
+# Softmax function
+def softmax(x):
+    exp_x = np.exp(x - np.max(x))
+    return exp_x / np.sum(exp_x)
+
+# Cross-entropy loss
+def cross_entropy_loss(pred, target):
+    return -np.sum(target * np.log(pred + 1e-8))
+
+# Learning parameters
+learning_rate = 0.01
+B = np.random.randn(n_out)  # Random feedback weights
+
+
+# Target output (one-hot encoding) for classification
+y_target = np.zeros((n_out))
+y_target[2] = 1
+
+
+global_feedback = np.zeros(13)  # Assuming global_feedback is of shape (13,)
+
+# Training loop
+losses = []
+for epoch in range(10):  # Number of training epochs
+    total_loss = 0
+    voltages = []
+    for t in range(n_samples):
+        # Step 1: Input and update neuron state
+        x = input_currents[t]  # Input at time t
+        target = y_target[t]  # Target at time t
+        v, spike = network.update(x)  # Update neuron states
+
+        # Store voltage and spikes at each time step
+        voltages.append(v)  # Store membrane potential
+        spikes.append(spike)  # Store spike data
+        # Step 2: Readout
+        y = network.readout()  # Network output
+
+        # Step 3: Compute predicted probabilities
+        pi = softmax(y)  # Predicted probabilities
+
+        # Step 4: Compute loss
+        loss = cross_entropy_loss(pi, target)  # Cross-entropy loss
+        total_loss += loss
+        # Step 5: Compute global feedback signal
+        global_feedback = np.dot(B, (pi - target))  # Feedback signal (weighted error)
+        # Step 6: Update recurrent weights using eligibility traces
+        network.w_in -= learning_rate * global_feedback * network.eligibility_in
+        network.w_rec -= learning_rate * global_feedback * network.eligibility_rec
+
+    # Store and print loss
+    losses.append(total_loss)
+    print(f"Epoch {epoch+1}, Loss: {total_loss}")
+
+# # for epoch in range(80):
+# for t in range(n_samples):  
+#     # Run the simulation for 5 time steps (for each input x^t)
+#     # for _ in range(5):
+#     v, spike = network.update(input_currents[t])  # Update neuron with input
+#     voltages.append(v)
+#     spikes.append(spike)
     
-# # After all time steps, compute the readout (output y^t) at the end
+# # After all time steps, compute the readoutF (output y^t) at the end
 # final_output = neuron.readout()  # Compute the readout at the last time step
 # outputs.append(final_output)  # Store the output
 
@@ -114,6 +192,7 @@ for t in range(n_samples):
 # print("Final Outputs (y^t) for all inputs (x^t):")
 # print(outputs)
 
+<<<<<<< Updated upstream
 print(np.array(voltages).shape)
 # Example plotting of the results (if needed)
 idx = 99
@@ -125,3 +204,12 @@ plt.show()
 
 plt.plot(range(n_samples), np.array(spikes)[:,idx])
 plt.show()
+=======
+    # Example plotting of the results (if needed)
+    idx = 10
+    plt.plot(range(n_samples), np.array(voltages)[:, idx])  # Shape should be (n_samples,)
+    plt.title("Neuron Membrane Potential Over Time")
+    plt.xlabel("Time Step")
+    plt.ylabel("Voltage")
+    plt.show()
+>>>>>>> Stashed changes
