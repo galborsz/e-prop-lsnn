@@ -1,15 +1,7 @@
-import pickle
-import json
-import matplotlib.pyplot as plt
 import numpy as np
+import json
 
-# General parameters
-epochs = 3
-
-# Dataset preparation
 path = '/Users/giselaalbors/Desktop/university/master/semester 5/e-prop-lsnn/timit_processed/train/'
-X_train_data = pickle.load(open('mfccs_train_batches.pickle', 'rb'))[:1000]
-y_train_data = pickle.load(open('phonems_train_batches.pickle', 'rb'))[:1000]
 mapping = json.load(open(path + 'reduced_phn_index_mapping.json'))
 
 class ALIFNetwork():
@@ -54,10 +46,10 @@ class ALIFNetwork():
         self.y = np.zeros(n_out)  # Previous output values
 
         # Eligibility traces
-        self.e_v = np.zeros(n_rec)
-        self.e_a = np.zeros(n_rec)
-        self.eligibility_traces = np.zeros(n_rec)
-        self.filtered_traces = np.zeros(n_rec)
+        self.e_v = np.zeros((n_rec, n_rec))
+        self.e_a = np.zeros((n_rec, n_rec))
+        self.eligibility_traces = np.zeros((n_rec, n_rec))
+        self.filtered_traces = np.zeros((n_rec, n_rec))
         self.gamma = 0.3
 
         # Learning signal 
@@ -109,13 +101,15 @@ class ALIFNetwork():
         self.z = self.v >= (self.thr + self.beta * self.a)   # 1 if spike, else 0
         self.time_since_last_spike[self.z == 1] = 0 # Reset refractory time count
 
-    def compute_grads(self, target):
-        pd = (1 / self.thr) * self.gamma * np.maximum(np.zeros(self.n_rec), 1 - np.abs((self.v - self.thr - self.beta * self.a) / self.thr))
-        self.e_a = pd * self.e_v + (self.p - pd * self.beta) * self.e_a
-        self.e_v = self.alpha * self.e_v + self.z #[:, t - 2]
-        
-        self.eligibility_traces = pd * (self.e_v - self.beta * self.e_a)
-        self.filtered_traces = (1 - self.k) * self.eligibility_traces + self.filtered_traces
+    def compute_grads(self, target):  
+        for i in range(self.n_rec):
+            for j in range(self.n_rec):
+                pd = (1 / self.thr) * self.gamma * np.maximum(0, 1 - np.abs((self.v[j] - self.thr - self.beta * self.a[j]) / self.thr))
+                self.e_v[i,j] = self.alpha * self.e_v[i,j] + self.z[i]
+                self.e_a[i,j] = pd * self.e_v[i,j] + (self.p - pd * self.beta) * self.e_a[i,j]
+    
+                self.eligibility_traces[i,j] = pd * (self.e_v[i,j] - self.beta * self.e_a[i,j])
+                self.filtered_traces[i,j] = (1 - self.k) * self.eligibility_traces[i,j] + self.filtered_traces[i,j]
 
         predicted_prob = np.exp(self.y) / np.sum(np.exp(self.y))
         self.L = np.dot(predicted_prob - target, self.B)
@@ -124,7 +118,6 @@ class ALIFNetwork():
     
     def cross_entropy(self, ypred, ytrue):
 
-        # Compute softmax
         ypred_prob = np.exp(ypred)/np.sum(np.exp(ypred))
         
         loss = 0
@@ -132,62 +125,3 @@ class ALIFNetwork():
             loss = loss + (-1 * ytrue[i]*np.log(ypred_prob[i]))
 
         return loss
-
-# Model
-network = ALIFNetwork(n_in=13, n_rec=300, n_out=39, tau_m=20., tau_a=200., thr=1.6, dt=1., n_refractory=2., beta=0.184)
-
-for epoch in range(epochs):
-    batch_loss = []
-
-    # For each batch of size 32
-    for X_batch, y_batch in zip(X_train_data, y_train_data):
-        # Forward pass
-        outputs, voltage, spikes, adaptation, etrace, weights_rec = network.forward(X_batch, y_batch)
-
-        # Performance monitoring loss
-        loss = network.cross_entropy(outputs, y_batch)
-        batch_loss.append(loss)
-    
-    print(f"Epoch {epoch}, Loss: {np.mean(batch_loss):.4f}")
-
-
-fig, axs = plt.subplots(nrows=6, ncols=1, figsize=(10, 7), constrained_layout=True)
-
-idx = 5
-input = X_batch
-
-x = range(len(input))
-
-v = np.asarray(voltage)
-s = np.asarray(spikes)
-a = np.asarray(adaptation)
-e = np.asarray(etrace)
-w = np.asarray(weights_rec)
-
-# Plot data in each subplot
-axs[0].plot(x, input)
-axs[0].set_title("Input")
-axs[0].set_xlabel("t")
-
-axs[1].plot(x, v[:, idx], color='blue')
-axs[1].set_title("Voltage")
-axs[1].set_xlabel("t")
-axs[1].set_ylabel("v")
-
-axs[2].plot(x, a[:, idx], color='red')
-axs[2].set_title("Adaptive Threshold")
-axs[2].set_xlabel("t")
-
-axs[3].plot(x, s[:, idx], color='red')
-axs[3].set_title("Spikes")
-axs[3].set_xlabel("t")
-
-axs[4].plot(x, e[:, idx], color='blue')
-axs[4].set_title("Eligibility trace")
-axs[4].set_xlabel("t")
-
-axs[5].plot(x, w[:, :, idx], color='blue')
-axs[5].set_title("Weight")
-axs[5].set_xlabel("t")
-
-plt.show()
