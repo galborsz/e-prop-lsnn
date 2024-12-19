@@ -50,3 +50,31 @@ def heatmaps(network, outputs, y_batch):
     # plt.tight_layout()
     plt.subplots_adjust(wspace=0.007)
     plt.show()
+
+def alif_states(self, X_batch, voltage, spikes, adaptation):
+    idx = 5
+    input = X_batch
+    x = range(len(input))
+
+    v = np.asarray(voltage)
+    s = np.asarray(spikes)
+    a = np.asarray(adaptation)
+
+    fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 7), constrained_layout=True)
+
+    axs[0].plot(x, input)
+    axs[0].set_title("Input")
+    axs[0].set_xlabel("t")
+
+    axs[1].plot(x, v[:, idx], color='blue')
+    axs[1].set_title("Voltage")
+    axs[1].set_xlabel("t")
+    axs[1].set_ylabel("v")
+
+    axs[2].plot(x, a[:, idx], color='red')
+    axs[2].set_title("Adaptive Threshold")
+    axs[2].set_xlabel("t")
+
+    axs[3].plot(x, s[:, idx], color='red')
+    axs[3].set_title("Spikes")
+    axs[3].set_xlabel("t")

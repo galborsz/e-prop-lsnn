@@ -1,12 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
+import json
+from itertools import chain
 
 path = '/Users/giselaalbors/Desktop/university/master/semester 5/e-prop-lsnn/timit_processed/train/'
 
 
 class ALIFNeuron:
-    def __init__(self, n_in, n_rec, n_out, t_total, tau_m=20., tau_a=20., thr=0.615, dt=1., n_refractory=2., beta=0.07):
+    def __init__(self, n_in, n_rec, n_out, t_total, tau_m=20., tau_a=200., thr=1.6, dt=1., n_refractory=2., beta=0.07):
         """
         Initializes an LIF neuron with parameters for learning and recurrence.
         :param n_in: Number of input neurons.
@@ -40,11 +42,23 @@ class ALIFNeuron:
         # Initialize weights
         # self.w_in = np.random.randn(n_in, n_rec) / np.sqrt(n_in)
         self.w_in = np.ones((n_in, n_rec))
-        self.w_rec = np.ones((n_rec, n_rec)) * 0.001  # np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
-        np.fill_diagonal(self.w_rec, 0)  # remove self loops
+        # Generate the same initial random values for all time dimensions
+        # base_weights = np.random.randn(n_rec, n_rec) / np.sqrt(n_rec - 1)
+
+        # # Replicate the base weights along the third axis
+        # self.w_rec = np.repeat(base_weights[:, :, np.newaxis], t_total, axis=2)
+        
+        # # Set the diagonal to 0 for each (n_rec, n_rec) matrix
+        # for t in range(t_total):
+        #     np.fill_diagonal(self.w_rec[:, :, t], 0)
         # # Set 80% of weights to zero
-        # mask = np.random.rand(*self.w_rec.shape) < 0.8  # Randomly select 80% of weights
-        # self.w_rec[mask] = 0  # Set selected weights to zero
+        # # Create a mask for 80% of weights to be set to zero (same mask for all t)
+        # mask = np.random.rand(n_rec, n_rec) < 0.8  # Randomly select 80% of weights
+
+        # # Apply the mask to all time steps (t)
+        # self.w_rec[mask] = 0
+
+        self.w_rec = np.ones((n_rec, n_rec, t_total)) * 0.001 
 
         # State variables
         self.v = np.zeros((n_rec, t_total))  # Initial membrane potential
@@ -71,7 +85,7 @@ class ALIFNeuron:
 
         # Learning signal 
         self.L = np.zeros((n_rec, t_total))
-        self.lr = 0.001
+        self.lr = 0.01
         
 
     def update_state(self, x, t):
@@ -82,7 +96,7 @@ class ALIFNeuron:
         """
 
         # Membrane potential update
-        self.v[:, t + 1] = self.alpha * self.v[:, t] + np.dot(x, self.w_in) + np.dot(self.z[:, t], self.w_rec) # Decay, recurrent weights and input weights
+        self.v[:, t + 1] = self.alpha * self.v[:, t] + np.dot(x, self.w_in) + np.dot(self.z[:, t], self.w_rec[:, :, t]) # Decay, recurrent weights and input weights
         self.v[self.z[:, t] == 1, t + 1] -= self.thr # Reset potential after spike
 
         # Adaptive threshold
@@ -106,74 +120,83 @@ class ALIFNeuron:
     
     def update_eligibility_trace(self, t):
         pd = self.pseudo_derivative(t)
-        self.e_v[:, t + 1] = self.alpha * self.e_v[:, t] + self.z[:, t - 1]
-        self.e_a[:, t + 1] = pd * self.e_v[:, t] + (self.p - pd * self.beta) * self.e_a[:, t]
+        self.e_v[:, t] = self.alpha * self.e_v[:, t - 1] + self.z[:, t - 2]
+        self.e_a[:, t] = pd * self.e_v[:, t - 1] + (self.p - pd * self.beta) * self.e_a[:, t - 1]
         self.eligibility_traces[:, t] = pd * (self.e_v[:, t] - self.beta * self.e_a[:, t])
+        self.filtered_traces[:, t] = (1 - self.k) * self.eligibility_traces[:, t - 1] + self.filtered_traces[:, t]
     
     def update_learning_signal(self, target, t):
         predicted_prob = np.exp(self.y[:, t]) / np.sum(np.exp(self.y[:, t]))
         self.L[:, t] = np.dot(predicted_prob - target, self.B)
 
-    def weight_update(self, target, t):
-
-        network.update_eligibility_trace(t)
-        network.update_learning_signal(target, t)
-
-        self.filtered_traces[:, t] = (1 - self.k) * self.eligibility_traces[:, t - 1] + self.filtered_traces[:, t]
-        self.w_rec -= self.lr * np.dot(self.L[:, t], self.filtered_traces[:, t])
+    def weight_update(self, t):
+        self.w_rec[:, :, t] -= self.lr * self.L[:, t] * self.filtered_traces[:, t]
 
 n_in = 13  # Number of input neurons
 n_rec = 100  # Number of recurrent neurons
 n_out = 39  # Number of output neurons, one for each class of the TIMIT dataset
 
-# Simulate for each input x^t
-X_train_data = pickle.load(open(path + 'mfccs.pickle', 'rb'))
-X_train_data = X_train_data[0]
-target_train_data = pickle.load(open(path + 'phonems.pickle', 'rb'))
-target_train_data = target_train_data[0]
 
-# Initialize an empty array for one-hot encoding
-one_hot_encoded_target = np.zeros((X_train_data.shape[0], n_out))
+X_train_data = pickle.load(open('mfccs_train.pickle', 'rb'))
+X_train_data = X_train_data[:1000]
+n_samples = len(X_train_data)
 
-# Set the corresponding index of each element in input_array to 1
-for i in range(X_train_data.shape[0]):
-    one_hot_encoded_target[i, target_train_data[i]] = 1
+y_train_data = pickle.load(open('phonems_train.pickle', 'rb'))
+y_train_data = y_train_data[:1000]
 
-# Find the min and max values for each feature (column)
-min_values = np.min(X_train_data, axis=0)  # Minimum value for each feature
-max_values = np.max(X_train_data, axis=0)  # Maximum value for each feature
-
-# Apply min-max normalization to scale the features to the range [0, 1]
-normalized_X_train_data = (X_train_data - min_values) / (max_values - min_values)
-
-n_samples = len(normalized_X_train_data)
+mapping = json.load(open(path + 'reduced_phn_index_mapping.json'))
 
 # Initialize the LIF neuron model
 network = ALIFNeuron(n_in=n_in, n_rec=n_rec, n_out=n_out, t_total=n_samples, tau_m=20., tau_a=500., thr=50., dt=1., n_refractory=5., beta=0.07)
 
-# for epoch in range(20):
-for t in range(n_samples - 1):  
-    # Run the simulation for 5 time steps (for each input x^t)
-    # for _ in range(5):
-    network.update_state(normalized_X_train_data[t], t)  # Update neuron with input
+# Initialize an empty array for one-hot encoding
+one_hot_encoded_target = np.zeros((n_samples, n_out))
 
-    if t >= 1:
-        network.weight_update(one_hot_encoded_target[t, :], t)
+# Training
+t = 0
+for X_train_trial, y_train_trial in zip(X_train_data, y_train_data):
+    
+    if t < n_samples - 1 :
+        one_hot_encoded_target[t, mapping[y_train_trial]] = 1
+        network.update_state(X_train_trial, t)  # Update neuron with input
+
+        network.update_eligibility_trace(t)
+        network.update_learning_signal(one_hot_encoded_target[t, :], t)
+
+        network.weight_update(t)
+
+        t += 1
+
+# Testing
+X_test_data = pickle.load(open('mfccs_test.pickle', 'rb'))
+X_test_data = X_test_data[:100]
+n_samples = len(X_test_data)
+
+y_test_data = pickle.load(open('phonems_test.pickle', 'rb'))
+y_test_data = y_test_data[:100]
+
+# for X_test_trial, y_test_trial in zip(X_test_data, y_test_data):
+    
 
 # Example plotting of the results (if needed)
 # Create the figure and subplots
-fig, axs = plt.subplots(nrows=5, ncols=1, figsize=(10, 7), constrained_layout=True)
+fig, axs = plt.subplots(nrows=6, ncols=1, figsize=(10, 7), constrained_layout=True)
 
-x = range(n_samples)
-idx = 99
-input = normalized_X_train_data[:,0]
-v = network.v[idx, :]
-s = network.z[idx, :]
-a = network.a[idx, :]
-e = network.eligibility_traces[idx, :]
+idx = 5
+
+
+input = X_train_data
+
+x = range(len(input))
+
+v = network.v[idx, :len(input)]
+s = network.z[idx, :len(input)]
+a = network.a[idx, :len(input)]
+e = network.eligibility_traces[idx, :len(input)]
+w = network.w_rec[0, idx, :len(input)]
 
 # Plot data in each subplot
-axs[0].plot(x, input)
+axs[0].plot(x, input[:, idx])
 axs[0].set_title("Input")
 axs[0].set_xlabel("t")
 
@@ -193,5 +216,9 @@ axs[3].set_xlabel("t")
 axs[4].plot(x, e, color='blue')
 axs[4].set_title("Eligibility trace")
 axs[4].set_xlabel("t")
+
+axs[5].plot(range(len(w)), w, color='blue')
+axs[5].set_title("Weight")
+axs[5].set_xlabel("t")
 
 plt.show()
